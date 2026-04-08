@@ -32,7 +32,7 @@ provider:
           Action:
             - lambda:InvokeFunction
           Resource:
-            - !GetAtt AggregateMobilityEventLambdaFunction.Arn
+            - Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${sls:stage}-aggregateMobilityEvent
 
 functions:
   createMobilityEvent:
