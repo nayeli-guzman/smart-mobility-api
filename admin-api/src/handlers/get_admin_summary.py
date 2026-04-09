@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from src.utils.response import json_response
+from src.utils.auth import require_admin
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["MOBILITY_EVENTS_TABLE"])
@@ -31,6 +32,11 @@ def classify_congestion(avg_speed: float) -> str:
 
 
 def handler(event, context):
+    
+    auth_error = require_admin(event)
+    if auth_error:
+        return auth_error
+    
     try:
         items = []
         scan_kwargs = {}

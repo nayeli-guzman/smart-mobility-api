@@ -38,6 +38,14 @@ resources:
           - ALLOW_REFRESH_TOKEN_AUTH
           - ALLOW_USER_SRP_AUTH
 
+    CognitoAdminGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        GroupName: admin
+        Description: Admin group for smart mobility platform
+        UserPoolId:
+          Ref: CognitoUserPool
+
   Outputs:
     CognitoUserPoolId:
       Value:
