@@ -1,79 +1,52 @@
 service: smart-mobility-api
 
-frameworkVersion: '4'
-
 provider:
   name: aws
-  runtime: python3.11
+  runtime: nodejs18.x
   region: eu-north-1
-  stage: dev
-  logRetentionInDays: 7
-
-  environment:
-    MOBILITY_EVENTS_TABLE: ${self:service}-${sls:stage}-mobility-events
-    SUMMARY_TABLE: ${self:service}-${sls:stage}-summary
-    AGGREGATE_FUNCTION_NAME: ${self:service}-${sls:stage}-aggregateMobilityEvent
-
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - dynamodb:PutItem
-            - dynamodb:GetItem
-            - dynamodb:UpdateItem
-            - dynamodb:Query
-            - dynamodb:Scan
-          Resource:
-            - !GetAtt MobilityEventsTable.Arn
-            - !GetAtt SummaryTable.Arn
-
-        - Effect: Allow
-          Action:
-            - lambda:InvokeFunction
-          Resource:
-            - Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${sls:stage}-aggregateMobilityEvent
-
-functions:
-  createMobilityEvent:
-    handler: src/handlers/create_mobility_event.handler
-    events:
-      - httpApi:
-          path: /mobility/events
-          method: post
-
-  aggregateMobilityEvent:
-    handler: src/handlers/aggregate_mobility_event.handler
-
-  getSummary:
-    handler: src/handlers/get_summary.handler
-    events:
-      - httpApi:
-          path: /summary
-          method: get
 
 resources:
   Resources:
-    MobilityEventsTable:
-      Type: AWS::DynamoDB::Table
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
       Properties:
-        TableName: ${self:provider.environment.MOBILITY_EVENTS_TABLE}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: eventId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: eventId
-            KeyType: HASH
+        UserPoolName: smart-mobility-user-pool
 
-    SummaryTable:
-      Type: AWS::DynamoDB::Table
+        UsernameAttributes:
+          - email
+
+        AutoVerifiedAttributes:
+          - email
+
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: false
+            RequireLowercase: false
+            RequireNumbers: false
+            RequireSymbols: false
+
+        MfaConfiguration: OFF
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
       Properties:
-        TableName: ${self:provider.environment.SUMMARY_TABLE}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: summaryKey
-            AttributeType: S
-        KeySchema:
-          - AttributeName: summaryKey
-            KeyType: HASH
+        ClientName: smart-mobility-client
+        UserPoolId:
+          Ref: CognitoUserPool
+
+        GenerateSecret: false
+
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
+
+outputs:
+  UserPoolId:
+    Value:
+      Ref: CognitoUserPool
+
+  UserPoolClientId:
+    Value:
+      Ref: CognitoUserPoolClient
