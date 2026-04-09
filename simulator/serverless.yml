@@ -1,0 +1,32 @@
+service: smart-mobility-simulator
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: eu-north-1
+  stage: dev
+  timeout: 30
+  memorySize: 256
+  logRetentionInDays: 7
+
+  environment:
+    API_MOBILITY_URL: ${env:API_MOBILITY_URL}
+    EVENTS_PER_RUN: ${env:EVENTS_PER_RUN, '10'}
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+    slim: true
+
+functions:
+  mobilityEventGenerator:
+    handler: handler.lambda_handler
+    name: ${self:service}-${sls:stage}-generator
+    description: Generates simulated mobility events and posts them to the mobility API
+    events:
+      - schedule:
+          rate: rate(1 minute)
+          enabled: true
+
