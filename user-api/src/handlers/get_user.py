@@ -1,5 +1,6 @@
 import os
 import boto3
+from datetime import datetime, timezone
 
 from src.utils.response import json_response
 
@@ -20,6 +21,7 @@ def handler(event, context):
         )
 
         token_user_id = claims.get("sub")
+        email = claims.get("email")
 
         if not requested_user_id:
             return json_response(400, {"message": "userId is required"})
@@ -30,10 +32,23 @@ def handler(event, context):
         response = table.get_item(Key={"userId": requested_user_id})
         item = response.get("Item")
 
-        if not item:
-            return json_response(404, {"message": "User not found"})
+        if item:
+            return json_response(200, item)
 
-        return json_response(200, item)
+        now = datetime.now(timezone.utc).isoformat()
+
+        new_user = {
+            "userId": requested_user_id,
+            "email": email,
+            "preferredMode": None,
+            "avoidCongestion": False,
+            "createdAt": now,
+            "updatedAt": now
+        }
+
+        table.put_item(Item=new_user)
+
+        return json_response(200, new_user)
 
     except Exception as e:
         print(f"Error getting user: {str(e)}")
