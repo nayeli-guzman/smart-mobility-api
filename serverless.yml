@@ -2,9 +2,6 @@ service: smart-mobility-api
 
 frameworkVersion: '4'
 
-plugins:
-  - serverless-python-requirements
-
 custom:
   pythonRequirements:
     dockerizePip: true
