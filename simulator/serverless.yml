@@ -12,7 +12,11 @@ provider:
   logRetentionInDays: 7
 
   environment:
-    API_MOBILITY_URL: ${env:API_MOBILITY_URL, "https://gxm6fwil74.execute-api.eu-north-1.amazonaws.com/mobility/events"}
+    API_MOBILITY_URL:
+      Fn::Join:
+        - ""
+        - - Fn::ImportValue: smart-mobility-${sls:stage}-api-mobility-url
+          - /mobility/events
     EVENTS_PER_RUN: ${env:EVENTS_PER_RUN, '10'}
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, "6ein230m72do06c2ruijane4uv"}
     COGNITO_USERNAME: ${env:COGNITO_USERNAME, "simulator@urbanmove.local"}

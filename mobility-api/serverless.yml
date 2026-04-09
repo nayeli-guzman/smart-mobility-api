@@ -276,11 +276,17 @@ resources:
     ApiMobilityId:
       Value:
         Ref: ApiMobility
+      Export:
+        Name: smart-mobility-${sls:stage}-api-mobility-id
 
     ApiMobilityUrl:
       Value:
         Fn::Sub: https://${ApiMobility}.execute-api.${AWS::Region}.amazonaws.com
+      Export:
+        Name: smart-mobility-${sls:stage}-api-mobility-url
 
     MobilityEventsTableName:
       Value:
         Ref: MobilityEventsTable
+      Export:
+        Name: smart-mobility-${sls:stage}-mobility-events-table-name
