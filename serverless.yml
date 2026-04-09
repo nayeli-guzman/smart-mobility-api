@@ -4,6 +4,28 @@ provider:
   name: aws
   runtime: python3.11
   region: eu-north-1
+  stage: dev
+  logRetentionInDays: 7
+
+  httpApi:
+    authorizers:
+      cognitoJwt:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl:
+          Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+        audience:
+          - Ref: CognitoUserPoolClient
+
+functions:
+  authCheck:
+    handler: src/handlers/auth_check.handler
+    events:
+      - httpApi:
+          path: /auth-check
+          method: get
+          authorizer:
+            name: cognitoJwt
 
 resources:
   Resources:
@@ -11,13 +33,10 @@ resources:
       Type: AWS::Cognito::UserPool
       Properties:
         UserPoolName: smart-mobility-user-pool
-
         UsernameAttributes:
           - email
-
         AutoVerifiedAttributes:
           - email
-
         Policies:
           PasswordPolicy:
             MinimumLength: 8
@@ -25,28 +44,24 @@ resources:
             RequireLowercase: false
             RequireNumbers: false
             RequireSymbols: false
-
         MfaConfiguration: OFF
-
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
       Properties:
         ClientName: smart-mobility-client
         UserPoolId:
           Ref: CognitoUserPool
-
         GenerateSecret: false
-
         ExplicitAuthFlows:
           - ALLOW_USER_PASSWORD_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
           - ALLOW_USER_SRP_AUTH
 
-outputs:
-  UserPoolId:
-    Value:
-      Ref: CognitoUserPool
+  Outputs:
+    UserPoolId:
+      Value:
+        Ref: CognitoUserPool
 
-  UserPoolClientId:
-    Value:
-      Ref: CognitoUserPoolClient
+    UserPoolClientId:
+      Value:
+        Ref: CognitoUserPoolClient
