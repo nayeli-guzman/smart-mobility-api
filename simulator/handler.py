@@ -11,7 +11,7 @@ COGNITO_CLIENT_ID = os.environ["COGNITO_CLIENT_ID"]
 COGNITO_USERNAME = os.environ["COGNITO_USERNAME"]
 COGNITO_PASSWORD = os.environ["COGNITO_PASSWORD"]
 
-cognito = boto3.client("cognito-idp", region_name=os.environ.get("AWS_REGION", "eu-north-1"))
+cognito = boto3.client("cognito-idp", region_name=os.environ["AWS_REGION"])
 
 USERS = [
     {"userId": "user-001", "email": "user1@example.com"},

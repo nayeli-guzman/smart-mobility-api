@@ -17,7 +17,6 @@ provider:
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, "6ein230m72do06c2ruijane4uv"}
     COGNITO_USERNAME: ${env:COGNITO_USERNAME, "simulator@urbanmove.local"}
     COGNITO_PASSWORD: ${env:COGNITO_PASSWORD, "Simulator1@"}
-    AWS_REGION: ${self:provider.region}
 
 custom:
   pythonRequirements:
