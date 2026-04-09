@@ -2,7 +2,7 @@ service: smart-mobility-api
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: python3.11
   region: eu-north-1
 
 resources:
