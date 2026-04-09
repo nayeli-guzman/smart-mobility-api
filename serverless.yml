@@ -1,5 +1,7 @@
 service: smart-mobility-api
 
+frameworkVersion: '4'
+
 provider:
   name: aws
   runtime: python3.11
