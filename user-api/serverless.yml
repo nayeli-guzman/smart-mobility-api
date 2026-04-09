@@ -1,0 +1,210 @@
+service: smart-mobility-user-api
+
+frameworkVersion: '4'
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+    pythonBin: python3
+
+provider:
+  name: aws
+  runtime: python3.11
+  timeout: 30
+  region: eu-north-1
+  stage: dev
+  logRetentionInDays: 7
+
+  environment:
+    USERS_TABLE: ${self:service}-${sls:stage}-users
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - Fn::GetAtt: [UsersTable, Arn]
+
+functions:
+  authCheck:
+    handler: src/handlers/auth_check.handler
+
+  getUser:
+    handler: src/handlers/get_user.handler
+
+  updateUserPreferences:
+    handler: src/handlers/update_user_preferences.handler
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+
+    ApiUser:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: api-user-${sls:stage}
+        ProtocolType: HTTP
+
+    ApiUserStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        StageName: $default
+        AutoDeploy: true
+
+    ApiUserAuthorizer:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        AuthorizerType: JWT
+        IdentitySource:
+          - $request.header.Authorization
+        Name: cognito-jwt-user
+        JwtConfiguration:
+          Issuer:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${ImportedUserPoolId}
+              - ImportedUserPoolId:
+                  Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-id
+          Audience:
+            - Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-client-id
+
+    AuthCheckIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [AuthCheckLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    GetUserIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [GetUserLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    UpdateUserPreferencesIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [UpdateUserPreferencesLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    AuthCheckRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        RouteKey: GET /auth-check
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: AuthCheckIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiUserAuthorizer
+
+    GetUserRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        RouteKey: GET /users/{userId}
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: GetUserIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiUserAuthorizer
+
+    UpdateUserPreferencesRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        RouteKey: PATCH /users/{userId}/preferences
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: UpdateUserPreferencesIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiUserAuthorizer
+
+    AuthCheckLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: AuthCheckLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiUser}/*/*
+
+    GetUserLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: GetUserLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiUser}/*/*
+
+    UpdateUserPreferencesLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: UpdateUserPreferencesLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiUser}/*/*
+
+  Outputs:
+    ApiUserId:
+      Value:
+        Ref: ApiUser
+      Export:
+        Name: smart-mobility-${sls:stage}-api-user-id
+
+    ApiUserUrl:
+      Value:
+        Fn::Sub: https://${ApiUser}.execute-api.${AWS::Region}.amazonaws.com
+      Export:
+        Name: smart-mobility-${sls:stage}-api-user-url
+
+    UsersTableName:
+      Value:
+        Ref: UsersTable
+      Export:
+        Name: smart-mobility-${sls:stage}-users-table-name
