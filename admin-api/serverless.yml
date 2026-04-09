@@ -1,0 +1,153 @@
+service: smart-mobility-admin-api
+
+frameworkVersion: '4'
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+    pythonBin: python3
+
+provider:
+  name: aws
+  runtime: python3.11
+  timeout: 30
+  region: eu-north-1
+  stage: dev
+  logRetentionInDays: 7
+
+  environment:
+    MOBILITY_EVENTS_TABLE:
+      Fn::ImportValue: smart-mobility-${sls:stage}-mobility-events-table-name
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Scan
+          Resource:
+            - Fn::ImportValue: smart-mobility-${sls:stage}-mobility-events-table-arn
+
+functions:
+  authCheck:
+    handler: src/handlers/auth_check.handler
+
+  getCongestionSummary:
+    handler: src/handlers/get_congestion_summary.handler
+
+resources:
+  Resources:
+    ApiAdmin:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: api-admin-${sls:stage}
+        ProtocolType: HTTP
+
+    ApiAdminStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        StageName: $default
+        AutoDeploy: true
+
+    ApiAdminAuthorizer:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        AuthorizerType: JWT
+        IdentitySource:
+          - $request.header.Authorization
+        Name: cognito-jwt-admin
+        JwtConfiguration:
+          Issuer:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${ImportedUserPoolId}
+              - ImportedUserPoolId:
+                  Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-id
+          Audience:
+            - Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-client-id
+
+    AuthCheckIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [AuthCheckLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    GetCongestionSummaryIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [GetCongestionSummaryLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    AuthCheckRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        RouteKey: GET /auth-check
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: AuthCheckIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiAdminAuthorizer
+
+    GetCongestionSummaryRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiAdmin
+        RouteKey: GET /analytics/congestion-summary
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: GetCongestionSummaryIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiAdminAuthorizer
+
+    AuthCheckLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: AuthCheckLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiAdmin}/*/*
+
+    GetCongestionSummaryLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: GetCongestionSummaryLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiAdmin}/*/*
+
+  Outputs:
+    ApiAdminId:
+      Value:
+        Ref: ApiAdmin
+      Export:
+        Name: smart-mobility-${sls:stage}-api-admin-id
+
+    ApiAdminUrl:
+      Value:
+        Fn::Sub: https://${ApiAdmin}.execute-api.${AWS::Region}.amazonaws.com
+      Export:
+        Name: smart-mobility-${sls:stage}-api-admin-url
