@@ -17,6 +17,9 @@ provider:
 
   environment:
     MOBILITY_EVENTS_TABLE: ${self:service}-${sls:stage}-mobility-events
+    USER_ID_TIMESTAMP_INDEX: UserIdTimestampIndex
+    ZONE_ID_TIMESTAMP_INDEX: ZoneIdTimestampIndex
+    VEHICLE_ID_TIMESTAMP_INDEX: VehicleIdTimestampIndex
 
   iam:
     role:
@@ -29,6 +32,7 @@ provider:
             - dynamodb:Scan
           Resource:
             - Fn::GetAtt: [MobilityEventsTable, Arn]
+            - Fn::Sub: ${MobilityEventsTable.Arn}/index/*
 
 functions:
   authCheck:
@@ -37,8 +41,18 @@ functions:
   createMobilityEvent:
     handler: src/handlers/create_mobility_event.handler
 
+  getMobilityEvent:
+    handler: src/handlers/get_mobility_event.handler
+
+  listMobilityEvents:
+    handler: src/handlers/list_mobility_events.handler
+
+  getMyMobilityHistory:
+    handler: src/handlers/get_my_mobility_history.handler
+
 resources:
   Resources:
+    
     MobilityEventsTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -47,9 +61,44 @@ resources:
         AttributeDefinitions:
           - AttributeName: eventId
             AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: zoneId
+            AttributeType: S
+          - AttributeName: vehicleId
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
         KeySchema:
           - AttributeName: eventId
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIdTimestampIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+          - IndexName: ZoneIdTimestampIndex
+            KeySchema:
+              - AttributeName: zoneId
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+          - IndexName: VehicleIdTimestampIndex
+            KeySchema:
+              - AttributeName: vehicleId
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     ApiMobility:
       Type: AWS::ApiGatewayV2::Api
@@ -149,6 +198,76 @@ resources:
         Action: lambda:InvokeFunction
         FunctionName:
           Ref: CreateMobilityEventLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiMobility}/*/*
+
+    GetMobilityEventIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiMobility
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [GetMobilityEventLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    ListMobilityEventsIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiMobility
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [ListMobilityEventsLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+    
+    GetMobilityEventRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiMobility
+        RouteKey: GET /mobility/events/{eventId}
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: GetMobilityEventIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiMobilityAuthorizer
+
+    ListMobilityEventsRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiMobility
+        RouteKey: GET /mobility/events
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: ListMobilityEventsIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiMobilityAuthorizer
+
+    GetMobilityEventLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: GetMobilityEventLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiMobility}/*/*
+
+    ListMobilityEventsLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: ListMobilityEventsLambdaFunction
         Principal: apigateway.amazonaws.com
         SourceArn:
           Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiMobility}/*/*

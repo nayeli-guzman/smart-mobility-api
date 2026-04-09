@@ -5,16 +5,10 @@ from datetime import datetime, timezone
 
 import boto3
 
+from src.utils.response import json_response
+
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["MOBILITY_EVENTS_TABLE"])
-
-
-def response(status_code, body):
-    return {
-        "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(body)
-    }
 
 
 def handler(event, context):
@@ -58,14 +52,14 @@ def handler(event, context):
 
         table.put_item(Item=item)
 
-        return response(201, {
+        return json_response(201, {
             "message": "Evento creado correctamente",
             "eventId": item["eventId"]
         })
 
     except json.JSONDecodeError:
-        return response(400, {"message": "JSON inválido"})
+        return json_response(400, {"message": "JSON inválido"})
 
     except Exception as e:
         print("ERROR:", str(e))
-        return response(500, {"message": "Internal server error"})
+        return json_response(500, {"message": "Internal server error"})
