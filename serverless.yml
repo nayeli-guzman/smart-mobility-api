@@ -5,6 +5,7 @@ frameworkVersion: '4'
 custom:
   pythonRequirements:
     dockerizePip: false
+    pythonBin: python3
 
 provider:
   name: aws
