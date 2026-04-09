@@ -47,9 +47,6 @@ functions:
   listMobilityEvents:
     handler: src/handlers/list_mobility_events.handler
 
-  getMyMobilityHistory:
-    handler: src/handlers/get_my_mobility_history.handler
-
 resources:
   Resources:
     
