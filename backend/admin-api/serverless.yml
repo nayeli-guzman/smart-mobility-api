@@ -59,6 +59,17 @@ resources:
       Properties:
         Name: api-admin-${sls:stage}
         ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - GET
+            - POST
+            - PATCH
+            - OPTIONS
+          AllowHeaders:
+            - Content-Type
+            - Authorization
 
     ApiAdminStage:
       Type: AWS::ApiGatewayV2::Stage
