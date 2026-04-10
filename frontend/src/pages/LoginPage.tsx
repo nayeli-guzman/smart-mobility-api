@@ -1,19 +1,38 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import { useAuth } from '../hooks/useAuth'
+import { getCurrentIdToken } from '../api/auth'
 import { parseUserFromToken } from '../utils/token'
+import { bootstrapUser } from '../api/user'
 
 export default function LoginPage() {
-  const { login, token } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const successMessage =
+    typeof location.state?.message === 'string' ? location.state.message : ''
+
+  useEffect(() => {
+    async function redirectIfLoggedIn() {
+      const token = await getCurrentIdToken()
+
+      if (token) {
+        const user = parseUserFromToken(token)
+        navigate(user.isAdmin ? '/admin' : '/dashboard', { replace: true })
+      }
+    }
+
+    void redirectIfLoggedIn()
+  }, [navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,13 +41,15 @@ export default function LoginPage() {
 
     try {
       await login({ email, password })
+      await bootstrapUser()
 
-      const currentToken = token
-      if (currentToken) {
-        const parsed = parseUserFromToken(currentToken)
-        navigate(parsed.isAdmin ? '/admin' : '/dashboard')
+      const idToken = await getCurrentIdToken()
+
+      if (idToken) {
+        const user = parseUserFromToken(idToken)
+        navigate(user.isAdmin ? '/admin' : '/dashboard', { replace: true })
       } else {
-        navigate('/dashboard')
+        navigate('/dashboard', { replace: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -63,6 +84,12 @@ export default function LoginPage() {
             placeholder="••••••••"
           />
 
+          {successMessage && (
+            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              {successMessage}
+            </div>
+          )}
+
           {error && (
             <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {error}
@@ -72,11 +99,12 @@ export default function LoginPage() {
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? 'Signing in...' : 'Login'}
           </Button>
+
           <p className="text-center text-sm text-slate-400">
             Don&apos;t have an account?{' '}
-            <a href="/signup" className="text-blue-300 hover:text-blue-200">
+            <Link to="/signup" className="text-blue-300 hover:text-blue-200">
               Sign up
-            </a>
+            </Link>
           </p>
         </form>
       </Card>

@@ -10,3 +10,8 @@ export async function updateUserPreferences(userId: string, payload: UpdatePrefe
   const response = await userApi.patch(`/users/${userId}/preferences`, payload)
   return response.data
 }
+
+export async function bootstrapUser() {
+  const response = await userApi.post('/users/bootstrap')
+  return response.data
+}

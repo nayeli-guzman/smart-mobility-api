@@ -15,6 +15,20 @@ provider:
   stage: dev
   logRetentionInDays: 7
 
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
+      allowCredentials: false
+
   environment:
     MOBILITY_EVENTS_TABLE: ${self:service}-${sls:stage}-mobility-events
     USER_ID_TIMESTAMP_INDEX: UserIdTimestampIndex

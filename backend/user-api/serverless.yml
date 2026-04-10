@@ -14,6 +14,20 @@ provider:
   region: eu-north-1
   stage: dev
   logRetentionInDays: 7
+  
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
+      allowCredentials: false
 
   environment:
     USERS_TABLE: ${self:service}-${sls:stage}-users

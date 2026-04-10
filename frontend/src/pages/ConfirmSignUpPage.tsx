@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
@@ -25,8 +25,10 @@ export default function ConfirmSignUpPage() {
 
     try {
       await confirmSignUpRequest(email, code)
-      setMessage('Account confirmed. You can now sign in.')
-      setTimeout(() => navigate('/login'), 1200)
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Account confirmed. You can now sign in.' },
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Confirmation failed')
     } finally {
@@ -55,7 +57,9 @@ export default function ConfirmSignUpPage() {
         <div className="mb-8 text-center">
           <p className="mb-2 text-sm uppercase tracking-[0.25em] text-blue-300">UrbanMove Platform</p>
           <h1 className="text-3xl font-bold text-white">Confirm account</h1>
-          <p className="mt-2 text-slate-400">Enter the verification code sent to {email || 'your email'}.</p>
+          <p className="mt-2 text-slate-400">
+            Enter the verification code sent to {email || 'your email'}.
+          </p>
         </div>
 
         <form onSubmit={handleConfirm} className="flex flex-col gap-5">
@@ -91,6 +95,13 @@ export default function ConfirmSignUpPage() {
           >
             {resending ? 'Resending...' : 'Resend code'}
           </Button>
+
+          <p className="text-center text-sm text-slate-400">
+            Back to{' '}
+            <Link to="/login" className="text-blue-300 hover:text-blue-200">
+              Sign in
+            </Link>
+          </p>
         </form>
       </Card>
     </div>

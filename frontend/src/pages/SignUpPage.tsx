@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
-import { signUpRequest } from '../api/auth'
+import { signUpRequest, getCurrentIdToken } from '../api/auth'
+import { parseUserFromToken } from '../utils/token'
 
 export default function SignUpPage() {
   const navigate = useNavigate()
@@ -13,6 +14,19 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    async function redirectIfLoggedIn() {
+      const token = await getCurrentIdToken()
+
+      if (token) {
+        const user = parseUserFromToken(token)
+        navigate(user.isAdmin ? '/admin' : '/dashboard', { replace: true })
+      }
+    }
+
+    void redirectIfLoggedIn()
+  }, [navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,9 +43,9 @@ export default function SignUpPage() {
       const result = await signUpRequest({ email, password })
 
       if (result.nextStep?.signUpStep === 'CONFIRM_SIGN_UP') {
-        navigate(`/confirm-signup?email=${encodeURIComponent(email)}`)
+        navigate(`/confirm-signup?email=${encodeURIComponent(email)}`, { replace: true })
       } else {
-        navigate('/login')
+        navigate('/login', { replace: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed')
@@ -46,7 +60,7 @@ export default function SignUpPage() {
         <div className="mb-8 text-center">
           <p className="mb-2 text-sm uppercase tracking-[0.25em] text-blue-300">UrbanMove Platform</p>
           <h1 className="text-3xl font-bold text-white">Create account</h1>
-          <p className="mt-2 text-slate-400">Register a new user in Cognito.</p>
+          <p className="mt-2 text-slate-400">Register a new account to access the platform.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -83,6 +97,13 @@ export default function SignUpPage() {
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? 'Creating account...' : 'Sign up'}
           </Button>
+
+          <p className="text-center text-sm text-slate-400">
+            Already have an account?{' '}
+            <Link to="/login" className="text-blue-300 hover:text-blue-200">
+              Sign in
+            </Link>
+          </p>
         </form>
       </Card>
     </div>
