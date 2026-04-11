@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RouteRequest, TravelMode } from '../../types/route'
 import { loadGoogleMaps } from '../../lib/googleMaps'
 
-type LatLng = google.maps.LatLngLiteral
+type LatLng = { lat: number; lng: number }
 
 type Props = {
   onGenerate: (request: RouteRequest) => void
@@ -57,13 +57,14 @@ function PlaceAutocompleteInput({
       await loadGoogleMaps()
 
       if (cancelled || !inputRef.current || autocompleteRef.current) return
+      if (!window.google?.maps?.places) return
 
-      const bounds = new google.maps.LatLngBounds(
+      const bounds = new window.google.maps.LatLngBounds(
         { lat: PARIS_BOUNDS.south, lng: PARIS_BOUNDS.west },
         { lat: PARIS_BOUNDS.north, lng: PARIS_BOUNDS.east }
       )
 
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name'],
         componentRestrictions: { country: 'fr' },
         bounds,
@@ -74,10 +75,6 @@ function PlaceAutocompleteInput({
 
       listenerRef.current = autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace()
-
-        console.log('PLACE FULL', place)
-        console.log('PLACE GEOMETRY', place?.geometry)
-        console.log('PLACE LOCATION', place?.geometry?.location)
 
         const address =
           place?.formatted_address ||
@@ -93,7 +90,6 @@ function PlaceAutocompleteInput({
           : null
 
         selectingFromAutocompleteRef.current = true
-
         onPlaceSelectRef.current({ address, location })
 
         window.setTimeout(() => {
@@ -107,13 +103,13 @@ function PlaceAutocompleteInput({
     return () => {
       cancelled = true
 
-      if (listenerRef.current) {
-        google.maps.event.removeListener(listenerRef.current)
+      if (listenerRef.current && window.google?.maps?.event) {
+        window.google.maps.event.removeListener(listenerRef.current)
         listenerRef.current = null
       }
 
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current)
+      if (autocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current)
         autocompleteRef.current = null
       }
     }
@@ -182,9 +178,10 @@ function RouteLiveMap({
         await loadGoogleMaps()
 
         if (cancelled || !mapRef.current) return
+        if (!window.google?.maps) return
 
         if (!mapInstanceRef.current) {
-          mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
             center: PARIS_CENTER,
             zoom: 12,
             mapTypeControl: false,
@@ -194,11 +191,11 @@ function RouteLiveMap({
         }
 
         if (!directionsServiceRef.current) {
-          directionsServiceRef.current = new google.maps.DirectionsService()
+          directionsServiceRef.current = new window.google.maps.DirectionsService()
         }
 
         if (!directionsRendererRef.current && mapInstanceRef.current) {
-          directionsRendererRef.current = new google.maps.DirectionsRenderer({
+          directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
             map: mapInstanceRef.current,
             suppressMarkers: true,
             polylineOptions: {
@@ -225,7 +222,7 @@ function RouteLiveMap({
 
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map) return
+    if (!map || !window.google?.maps) return
 
     if (originMarkerRef.current) {
       originMarkerRef.current.setMap(null)
@@ -238,7 +235,7 @@ function RouteLiveMap({
     }
 
     if (originLocation) {
-      originMarkerRef.current = new google.maps.Marker({
+      originMarkerRef.current = new window.google.maps.Marker({
         map,
         position: originLocation,
         title: 'Inicio',
@@ -247,7 +244,7 @@ function RouteLiveMap({
     }
 
     if (destinationLocation) {
-      destinationMarkerRef.current = new google.maps.Marker({
+      destinationMarkerRef.current = new window.google.maps.Marker({
         map,
         position: destinationLocation,
         title: 'Fin',
@@ -256,7 +253,7 @@ function RouteLiveMap({
     }
 
     if (originLocation && destinationLocation) {
-      const bounds = new google.maps.LatLngBounds()
+      const bounds = new window.google.maps.LatLngBounds()
       bounds.extend(originLocation)
       bounds.extend(destinationLocation)
       map.fitBounds(bounds, 80)
@@ -276,7 +273,7 @@ function RouteLiveMap({
     const directionsService = directionsServiceRef.current
     const directionsRenderer = directionsRendererRef.current
 
-    if (!directionsService || !directionsRenderer) return
+    if (!directionsService || !directionsRenderer || !window.google?.maps) return
 
     setError('')
 
@@ -294,10 +291,13 @@ function RouteLiveMap({
       {
         origin: originLocation,
         destination: destinationLocation,
-        travelMode: google.maps.TravelMode[travelMode],
+        travelMode: window.google.maps.TravelMode[travelMode],
       },
-      (result, status) => {
-        if (status === 'OK' && result) {
+      (
+        result: google.maps.DirectionsResult | null,
+        status: google.maps.DirectionsStatus
+      ) => {
+        if (status === window.google.maps.DirectionsStatus.OK && result) {
           directionsRenderer.setDirections(result)
         } else {
           console.error('Directions error:', status, result)
@@ -334,7 +334,6 @@ export default function RoutePlannerForm({ onGenerate }: Props) {
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [mode, setMode] = useState<TravelMode>('car')
-
   const [originLocation, setOriginLocation] = useState<LatLng | null>(null)
   const [destinationLocation, setDestinationLocation] = useState<LatLng | null>(null)
   const [shouldRenderRoute, setShouldRenderRoute] = useState(false)
@@ -379,7 +378,6 @@ export default function RoutePlannerForm({ onGenerate }: Props) {
             setShouldRenderRoute(false)
           }}
           onPlaceSelect={({ address, location }) => {
-            console.error('dIRECCIONES', address, location)
             setOrigin(address)
             setOriginLocation(location)
             setShouldRenderRoute(false)
