@@ -293,8 +293,7 @@ function RouteLiveMap({
         destination: destinationLocation,
         travelMode: globalThis.google.maps.TravelMode[travelMode],
       },
-      (
-        (result: any, status: any) => {
+      (result: any, status: any) => {
         if (status === globalThis.google.maps.DirectionsStatus.OK && result) {
           directionsRenderer.setDirections(result)
         } else {
