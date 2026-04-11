@@ -161,11 +161,11 @@ function RouteLiveMap({
   shouldRenderRoute,
 }: RouteLiveMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const originMarkerRef = useRef<google.maps.Marker | null>(null)
-  const destinationMarkerRef = useRef<google.maps.Marker | null>(null)
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const originMarkerRef = useRef<any>(null)
+  const destinationMarkerRef = useRef<any>(null)
+  const directionsServiceRef = useRef<any>(null)
+  const directionsRendererRef = useRef<any>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -294,9 +294,7 @@ function RouteLiveMap({
         travelMode: globalThis.google.maps.TravelMode[travelMode],
       },
       (
-        result: google.maps.DirectionsResult | null,
-        status: google.maps.DirectionsStatus
-      ) => {
+        (result: any, status: any) => {
         if (status === globalThis.google.maps.DirectionsStatus.OK && result) {
           directionsRenderer.setDirections(result)
         } else {
