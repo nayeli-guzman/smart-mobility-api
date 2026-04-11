@@ -24,6 +24,10 @@ export default function Sidebar() {
           Profile
         </Link>
 
+        <Link to="/route-planner" className={linkClass(location.pathname === '/route-planner')}>
+          Route Planner
+        </Link>
+
         {user?.isAdmin && (
           <Link to="/admin" className={linkClass(location.pathname === '/admin')}>
             Admin
