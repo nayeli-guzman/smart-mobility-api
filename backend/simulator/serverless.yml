@@ -4,12 +4,12 @@ frameworkVersion: '4'
 
 provider:
   name: aws
-  runtime: python3.11
   region: eu-north-1
   stage: dev
-  timeout: 30
-  memorySize: 256
-  logRetentionInDays: 7
+  ecr:
+    images:
+      simulatorImage:
+        path: .  # carpeta donde está el Dockerfile
 
   environment:
     API_MOBILITY_URL:
@@ -22,16 +22,14 @@ provider:
     COGNITO_USERNAME: ${env:COGNITO_USERNAME, "simulator@urbanmove.local"}
     COGNITO_PASSWORD: ${env:COGNITO_PASSWORD, "Simulator1@"}
 
-custom:
-  pythonRequirements:
-    dockerizePip: false
-    slim: true
-
 functions:
   mobilityEventGenerator:
-    handler: handler.lambda_handler
+    image:
+      name: simulatorImage
     name: ${self:service}-${sls:stage}-generator
     description: Generates simulated mobility events and posts them to the mobility API
+    timeout: 30
+    memorySize: 256
     events:
       - schedule:
           rate: rate(1 minute)

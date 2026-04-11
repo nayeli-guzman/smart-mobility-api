@@ -15,11 +15,18 @@ export default function UserDashboard() {
 
   const [events, setEvents] = useState<MobilityEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const [nextToken, setNextToken] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
 
   const [form, setForm] = useState<CreateMobilityEventPayload>({
-    userId: user?.userId ?? 'demo-user-id',
+    userId: user?.userId ?? '',
     zoneId: 'zone-a',
     vehicleId: 'vehicle-001',
     eventType: 'location_update',
@@ -29,41 +36,93 @@ export default function UserDashboard() {
     longitude: 24.9384,
   })
 
-  async function loadEvents() {
+  useEffect(() => {
+    if (user?.userId) {
+      setForm((prev) => ({
+        ...prev,
+        userId: user.userId,
+      }))
+    }
+  }, [user])
+
+  async function loadInitialEvents() {
+    if (!user?.userId) return
+
+    setLoadingEvents(true)
+    setError('')
+
     try {
-      const data = await listMobilityEvents()
-      setEvents(data)
-    } catch {
+      const data = await listMobilityEvents(20, undefined, user.userId)
+      setEvents(data.items)
+      setNextToken(data.nextToken)
+      setHasMore(data.hasMore)
+    } catch (err) {
       setEvents([])
+      setNextToken(null)
+      setHasMore(false)
+      setError(err instanceof Error ? err.message : 'Could not load events')
     } finally {
       setLoadingEvents(false)
     }
   }
 
-  useEffect(() => {
-    void loadEvents()
-  }, [])
+  async function refreshEvents() {
+    if (!user?.userId) return
+
+    setRefreshing(true)
+    setError('')
+
+    try {
+      const data = await listMobilityEvents(20, undefined, user.userId)
+      setEvents(data.items)
+      setNextToken(data.nextToken)
+      setHasMore(data.hasMore)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not refresh events')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  async function loadMoreEvents() {
+    if (!user?.userId || !nextToken) return
+
+    setLoadingMore(true)
+    setError('')
+
+    try {
+      const data = await listMobilityEvents(20, nextToken, user.userId)
+      setEvents((prev) => [...prev, ...data.items])
+      setNextToken(data.nextToken)
+      setHasMore(data.hasMore)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load more events')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
-    if (user?.userId) {
-      setForm((prev) => ({ ...prev, userId: user.userId }))
-    }
-  }, [user])
+    void loadInitialEvents()
+  }, [user?.userId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     setMessage('')
+    setError('')
 
     try {
       await createMobilityEvent({
         ...form,
+        userId: user?.userId ?? form.userId,
         timestamp: new Date().toISOString(),
       })
+
       setMessage('Mobility event created successfully.')
-      await loadEvents()
-    } catch {
-      setMessage('Could not create event. Verify request body expected by your Lambda.')
+      await refreshEvents()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create event')
     } finally {
       setSubmitting(false)
     }
@@ -73,13 +132,25 @@ export default function UserDashboard() {
     <AppShell>
       <SectionTitle
         title="User Dashboard"
-        subtitle="Register mobility events and inspect recent platform activity."
+        subtitle="Register mobility events and inspect your recent platform activity."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Loaded Events" value={events.length} subtitle="Visible in current query" />
-        <StatCard title="Current User" value={user?.isAdmin ? 'Admin' : 'User'} subtitle={user?.email} />
-        <StatCard title="Region" value="eu-north-1" subtitle="AWS deployment region" />
+        <StatCard
+          title="Loaded Events"
+          value={events.length}
+          subtitle="Loaded in the current session"
+        />
+        <StatCard
+          title="Current User"
+          value={user?.isAdmin ? 'Admin' : 'User'}
+          subtitle={user?.email ?? 'Unknown user'}
+        />
+        <StatCard
+          title="Region"
+          value="eu-north-1"
+          subtitle="AWS deployment region"
+        />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -109,7 +180,12 @@ export default function UserDashboard() {
               label="Speed"
               type="number"
               value={form.speed ?? 0}
-              onChange={(e) => setForm((prev) => ({ ...prev, speed: Number(e.target.value) }))}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  speed: Number(e.target.value),
+                }))
+              }
             />
 
             <Input
@@ -117,7 +193,12 @@ export default function UserDashboard() {
               type="number"
               step="any"
               value={form.latitude ?? 0}
-              onChange={(e) => setForm((prev) => ({ ...prev, latitude: Number(e.target.value) }))}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  latitude: Number(e.target.value),
+                }))
+              }
             />
 
             <Input
@@ -125,7 +206,12 @@ export default function UserDashboard() {
               type="number"
               step="any"
               value={form.longitude ?? 0}
-              onChange={(e) => setForm((prev) => ({ ...prev, longitude: Number(e.target.value) }))}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  longitude: Number(e.target.value),
+                }))
+              }
             />
 
             <Button type="submit" disabled={submitting}>
@@ -133,30 +219,43 @@ export default function UserDashboard() {
             </Button>
 
             {message && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
                 {message}
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error}
               </div>
             )}
           </form>
         </Card>
 
         <Card>
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex items-center justify-between gap-3">
             <h3 className="text-xl font-semibold text-white">Recent Mobility Events</h3>
-            <Button onClick={() => void loadEvents()} className="bg-slate-800 hover:bg-slate-700 shadow-none">
-              Refresh
+
+            <Button
+              onClick={() => void refreshEvents()}
+              disabled={refreshing || loadingEvents}
+              className="bg-slate-800 hover:bg-slate-700 shadow-none"
+            >
+              {refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
 
           {loadingEvents ? (
-            <div className="text-slate-400">Loading events...</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-slate-400">
+              Loading events...
+            </div>
           ) : events.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-6 text-slate-400">
-              No events returned by the API.
+              No events found for this user.
             </div>
           ) : (
             <div className="space-y-4">
-              {events.slice(0, 8).map((event) => (
+              {events.map((event) => (
                 <div
                   key={event.eventId}
                   className="rounded-2xl border border-white/10 bg-white/5 p-4"
@@ -167,14 +266,42 @@ export default function UserDashboard() {
                   </div>
 
                   <div className="grid gap-2 text-sm text-slate-200 md:grid-cols-2">
-                    <p><span className="text-slate-400">Event ID:</span> {event.eventId}</p>
-                    <p><span className="text-slate-400">User ID:</span> {event.userId}</p>
-                    <p><span className="text-slate-400">Zone:</span> {event.zoneId}</p>
-                    <p><span className="text-slate-400">Vehicle:</span> {event.vehicleId}</p>
-                    <p><span className="text-slate-400">Speed:</span> {event.speed ?? 'N/A'}</p>
+                    <p>
+                      <span className="text-slate-400">Event ID:</span> {event.eventId}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">User ID:</span> {event.userId}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Zone:</span> {event.zoneId}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Vehicle:</span> {event.vehicleId}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Speed:</span> {event.speed ?? 'N/A'}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Latitude:</span> {event.latitude ?? 'N/A'}
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Longitude:</span> {event.longitude ?? 'N/A'}
+                    </p>
                   </div>
                 </div>
               ))}
+
+              {hasMore && (
+                <div className="pt-2">
+                  <Button
+                    onClick={() => void loadMoreEvents()}
+                    disabled={loadingMore}
+                    className="w-full bg-slate-800 hover:bg-slate-700 shadow-none"
+                  >
+                    {loadingMore ? 'Loading more...' : 'Load more'}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </Card>

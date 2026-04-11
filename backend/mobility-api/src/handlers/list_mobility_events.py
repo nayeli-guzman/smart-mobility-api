@@ -1,4 +1,6 @@
 import os
+import json
+import base64
 from decimal import Decimal
 
 import boto3
@@ -26,6 +28,20 @@ def normalize(item):
     return item
 
 
+def encode_next_token(last_evaluated_key):
+    if not last_evaluated_key:
+        return None
+    raw = json.dumps(last_evaluated_key)
+    return base64.b64encode(raw.encode("utf-8")).decode("utf-8")
+
+
+def decode_next_token(token):
+    if not token:
+        return None
+    raw = base64.b64decode(token.encode("utf-8")).decode("utf-8")
+    return json.loads(raw)
+
+
 def handler(event, context):
     try:
         query_params = event.get("queryStringParameters") or {}
@@ -33,12 +49,16 @@ def handler(event, context):
         user_id = query_params.get("userId")
         zone_id = query_params.get("zoneId")
         vehicle_id = query_params.get("vehicleId")
+        next_token = query_params.get("nextToken")
+
         limit = int(query_params.get("limit", "20"))
 
         if limit < 1:
             limit = 1
         if limit > 100:
             limit = 100
+
+        exclusive_start_key = decode_next_token(next_token) if next_token else None
 
         filters_used = sum([
             1 if user_id else 0,
@@ -51,40 +71,48 @@ def handler(event, context):
                 "message": "Usa solo uno de estos filtros por solicitud: userId, zoneId o vehicleId"
             })
 
+        query_args = {
+            "Limit": limit,
+            "ExclusiveStartKey": exclusive_start_key
+        } if exclusive_start_key else {
+            "Limit": limit
+        }
+
         if user_id:
             result = table.query(
                 IndexName=USER_INDEX,
                 KeyConditionExpression=Key("userId").eq(user_id),
                 ScanIndexForward=False,
-                Limit=limit
+                **query_args
             )
-            items = result.get("Items", [])
 
         elif zone_id:
             result = table.query(
                 IndexName=ZONE_INDEX,
                 KeyConditionExpression=Key("zoneId").eq(zone_id),
                 ScanIndexForward=False,
-                Limit=limit
+                **query_args
             )
-            items = result.get("Items", [])
 
         elif vehicle_id:
             result = table.query(
                 IndexName=VEHICLE_INDEX,
                 KeyConditionExpression=Key("vehicleId").eq(vehicle_id),
                 ScanIndexForward=False,
-                Limit=limit
+                **query_args
             )
-            items = result.get("Items", [])
 
         else:
-            result = table.scan(Limit=limit)
-            items = result.get("Items", [])
+            result = table.scan(**query_args)
+
+        items = result.get("Items", [])
+        last_evaluated_key = result.get("LastEvaluatedKey")
 
         return json_response(200, {
             "count": len(items),
-            "items": normalize(items)
+            "items": normalize(items),
+            "nextToken": encode_next_token(last_evaluated_key),
+            "hasMore": last_evaluated_key is not None
         })
 
     except ValueError:
