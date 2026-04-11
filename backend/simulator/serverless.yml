@@ -26,7 +26,6 @@ functions:
   mobilityEventGenerator:
     image:
       name: simulatorimage
-    name: ${self:service}-${sls:stage}-generator
     description: Generates simulated mobility events and posts them to the mobility API
     timeout: 30
     memorySize: 256
