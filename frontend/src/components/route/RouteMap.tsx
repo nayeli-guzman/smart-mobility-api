@@ -29,7 +29,7 @@ export default function RouteMap({ origin, destination, travelMode }: Props) {
         await importLibrary('maps')
         await importLibrary('routes')
 
-        if (isCancelled || !window.google?.maps) return
+        if (isCancelled || !globalThis.google?.maps) return
 
         const map = new google.maps.Map(mapRef.current, {
           center: { lat: -12.0464, lng: -77.0428 },
@@ -56,7 +56,7 @@ export default function RouteMap({ origin, destination, travelMode }: Props) {
             destination,
             travelMode: google.maps.TravelMode[travelMode],
           },
-          (result, status) => {
+          (result: any, status: any)  => {
             if (isCancelled) return
 
             if (status === 'OK' && result) {

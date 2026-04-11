@@ -8,8 +8,8 @@ type Props = {
 
 export default function RouteMapPreview({ center, markerTitle }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -18,14 +18,14 @@ export default function RouteMapPreview({ center, markerTitle }: Props) {
       if (!mapRef.current) return
 
       await loadGoogleMaps()
-      await google.maps.importLibrary('marker')
+      await globalThis.google.maps.importLibrary('marker')
 
       if (cancelled || !mapRef.current) return
 
       const defaultCenter = center ?? { lat: -12.0464, lng: -77.0428 }
 
       if (!mapInstanceRef.current) {
-        mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+        mapInstanceRef.current = new globalThis.google.maps.Map(mapRef.current, {
           center: defaultCenter,
           zoom: center ? 15 : 12,
           mapTypeControl: false,

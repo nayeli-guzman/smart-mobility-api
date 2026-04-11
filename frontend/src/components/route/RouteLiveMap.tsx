@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '../../lib/googleMaps'
 
-type LatLng = google.maps.LatLngLiteral
+type LatLng = {
+  lat: number
+  lng: number
+}
 
 type Props = {
   originLocation: LatLng | null
@@ -19,11 +22,11 @@ export default function RouteLiveMap({
   shouldRenderRoute,
 }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const originMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
-  const destinationMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const originMarkerRef = useRef<any>(null)
+  const destinationMarkerRef = useRef<any>(null)
+  const directionsServiceRef = useRef<any>(null)
+  const directionsRendererRef = useRef<any>(null)
 
   const [error, setError] = useState('')
 
@@ -135,7 +138,7 @@ export default function RouteLiveMap({
     setError('')
 
     if (!shouldRenderRoute) {
-      directionsRenderer.setDirections({ routes: [] } as google.maps.DirectionsResult)
+      directionsRenderer.setDirections({ routes: [] } as any)
       return
     }
 
