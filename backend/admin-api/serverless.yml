@@ -137,7 +137,7 @@ resources:
       Properties:
         ApiId:
           Ref: ApiAdmin
-        RouteKey: GET /analytics/congestion-summary
+        RouteKey: GET /admin/congestion-summary
         Target:
           Fn::Join:
             - /
