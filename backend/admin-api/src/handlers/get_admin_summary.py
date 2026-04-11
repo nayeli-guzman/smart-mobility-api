@@ -32,6 +32,8 @@ def classify_congestion(avg_speed: float) -> str:
 
 
 def handler(event, context):
+
+    print("=== HANDLER INVOKED ===")
     
     auth_error = require_admin(event)
     if auth_error:
