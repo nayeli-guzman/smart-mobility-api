@@ -35,19 +35,21 @@ export interface CreateMobilityEventPayload {
   longitude?: number
 }
 
-export interface AdminSummary {
-  activeUsers?: number
-  totalEvents?: number
-  congestedZones?: number
-  avgResponseMs?: number
-  [key: string]: unknown
+
+
+export type AdminSummary = {
+  activeUsers: number
+  totalEvents: number
+  congestedZones: number
+  avgResponseMs: number
 }
 
-export interface CongestionSummaryItem {
-  zoneId?: string
-  zone?: string
-  congestionLevel?: number
-  level?: number
-  status?: string
-  [key: string]: unknown
+export type CongestionSummaryItem = {
+  zoneId: string
+  congestionLevel: string
+  status: string
+  events?: number
+  avgSpeed?: number
+  activeVehicles?: number
+  lastEventTimestamp?: string
 }

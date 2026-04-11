@@ -10,20 +10,42 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState<AdminSummary | null>(null)
   const [congestion, setCongestion] = useState<CongestionSummaryItem[]>([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      try {
-        const [summaryData, congestionData] = await Promise.all([
-          getAdminSummary(),
-          getCongestionSummary(),
-        ])
+      setLoading(true)
+      setError('')
 
-        setSummary(summaryData)
-        setCongestion(congestionData)
-      } catch {
-        setError('Could not load admin endpoints. Verify JWT group and Lambda response shape.')
+      const [summaryResult, congestionResult] = await Promise.allSettled([
+        getAdminSummary(),
+        getCongestionSummary(),
+      ])
+
+      if (summaryResult.status === 'fulfilled') {
+        setSummary(summaryResult.value)
+      } else {
+        console.error('Admin summary failed:', summaryResult.reason)
       }
+
+      if (congestionResult.status === 'fulfilled') {
+        setCongestion(congestionResult.value)
+      } else {
+        console.error('Congestion summary failed:', congestionResult.reason)
+      }
+
+      if (
+        summaryResult.status === 'rejected' &&
+        congestionResult.status === 'rejected'
+      ) {
+        setError('Could not load admin endpoints.')
+      } else if (congestionResult.status === 'rejected') {
+        setError('Congestion summary could not be loaded.')
+      } else if (summaryResult.status === 'rejected') {
+        setError('Admin summary could not be loaded.')
+      }
+
+      setLoading(false)
     }
 
     void load()
@@ -43,17 +65,33 @@ export default function AdminDashboard() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Active Users" value={String(summary?.activeUsers ?? 'N/A')} />
-        <StatCard title="Total Events" value={String(summary?.totalEvents ?? 'N/A')} />
-        <StatCard title="Congested Zones" value={String(summary?.congestedZones ?? congestion.length)} />
-        <StatCard title="Avg Response" value={summary?.avgResponseMs ? `${summary.avgResponseMs} ms` : 'N/A'} />
+        <StatCard
+          title="Active Users"
+          value={loading ? '...' : String(summary?.activeUsers ?? 0)}
+        />
+        <StatCard
+          title="Total Events"
+          value={loading ? '...' : String(summary?.totalEvents ?? 0)}
+        />
+        <StatCard
+          title="Congested Zones"
+          value={loading ? '...' : String(summary?.congestedZones ?? congestion.length)}
+        />
+        <StatCard
+          title="Avg Response"
+          value={loading ? '...' : `${summary?.avgResponseMs ?? 0} ms`}
+        />
       </div>
 
       <div className="mt-6">
         <Card>
           <h3 className="mb-5 text-xl font-semibold text-white">Congestion Summary</h3>
 
-          {congestion.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl border border-dashed border-white/15 p-6 text-slate-400">
+              Loading admin data...
+            </div>
+          ) : congestion.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-6 text-slate-400">
               No congestion data returned.
             </div>
@@ -65,14 +103,20 @@ export default function AdminDashboard() {
                     <th className="px-4">Zone</th>
                     <th className="px-4">Level</th>
                     <th className="px-4">Status</th>
+                    <th className="px-4">Events</th>
+                    <th className="px-4">Avg Speed</th>
+                    <th className="px-4">Active Vehicles</th>
                   </tr>
                 </thead>
                 <tbody>
                   {congestion.map((item, index) => (
-                    <tr key={`${item.zoneId ?? item.zone ?? 'zone'}-${index}`} className="bg-white/5 text-slate-200">
-                      <td className="rounded-l-2xl px-4 py-4">{item.zoneId ?? item.zone ?? 'Unknown'}</td>
-                      <td className="px-4 py-4">{item.congestionLevel ?? item.level ?? 'N/A'}</td>
-                      <td className="rounded-r-2xl px-4 py-4">{item.status ?? 'N/A'}</td>
+                    <tr key={`${item.zoneId}-${index}`} className="bg-white/5 text-slate-200">
+                      <td className="rounded-l-2xl px-4 py-4">{item.zoneId}</td>
+                      <td className="px-4 py-4">{item.congestionLevel}</td>
+                      <td className="px-4 py-4">{item.status}</td>
+                      <td className="px-4 py-4">{item.events ?? 0}</td>
+                      <td className="px-4 py-4">{item.avgSpeed ?? 0}</td>
+                      <td className="rounded-r-2xl px-4 py-4">{item.activeVehicles ?? 0}</td>
                     </tr>
                   ))}
                 </tbody>
