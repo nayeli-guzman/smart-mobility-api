@@ -1,4 +1,7 @@
 {
+  "compilerOptions": {
+    "types": ["vite/client", "google.maps"]
+  },
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" },
