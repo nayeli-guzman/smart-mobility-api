@@ -15,21 +15,24 @@ def require_admin(event):
     raw_groups = claims.get("cognito:groups", [])
     print("RAW GROUPS:", raw_groups)
 
+    groups = []
+
     if isinstance(raw_groups, list):
-        groups = [str(g).strip() for g in raw_groups if str(g).strip()]
+        groups = raw_groups
+
     elif isinstance(raw_groups, str):
         value = raw_groups.strip()
 
         if value.startswith("[") and value.endswith("]"):
             try:
-                parsed = json.loads(value)
-                groups = [str(g).strip() for g in parsed if str(g).strip()]
+                parsed = json.loads(value.replace("'", '"'))
+                groups = parsed if isinstance(parsed, list) else [parsed]
             except Exception:
+                # fallback manual
+                value = value.strip("[]")
                 groups = [g.strip() for g in value.split(",") if g.strip()]
         else:
             groups = [g.strip() for g in value.split(",") if g.strip()]
-    else:
-        groups = []
 
     print("PARSED GROUPS:", groups)
 
@@ -38,5 +41,6 @@ def require_admin(event):
             403,
             {"message": "Forbidden. Admin role required."}
         )
+
 
     return None
