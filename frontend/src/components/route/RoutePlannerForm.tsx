@@ -34,11 +34,11 @@ function PlaceAutocompleteInput({
   onPlaceSelect: (payload: PlaceSelection) => void
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+  const autocompleteRef = useRef<any>(null)
   const selectingFromAutocompleteRef = useRef(false)
   const onPlaceSelectRef = useRef(onPlaceSelect)
   const onTextChangeRef = useRef(onTextChange)
-  const listenerRef = useRef<google.maps.MapsEventListener | null>(null)
+  const listenerRef = useRef<any>(null)
 
   useEffect(() => {
     onPlaceSelectRef.current = onPlaceSelect
@@ -57,14 +57,14 @@ function PlaceAutocompleteInput({
       await loadGoogleMaps()
 
       if (cancelled || !inputRef.current || autocompleteRef.current) return
-      if (!window.google?.maps?.places) return
+      if (!globalThis.google?.maps?.places) return
 
-      const bounds = new window.google.maps.LatLngBounds(
+      const bounds = new globalThis.google.maps.LatLngBounds(
         { lat: PARIS_BOUNDS.south, lng: PARIS_BOUNDS.west },
         { lat: PARIS_BOUNDS.north, lng: PARIS_BOUNDS.east }
       )
 
-      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+      const autocomplete = new globalThis.google.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name'],
         componentRestrictions: { country: 'fr' },
         bounds,
@@ -92,7 +92,7 @@ function PlaceAutocompleteInput({
         selectingFromAutocompleteRef.current = true
         onPlaceSelectRef.current({ address, location })
 
-        window.setTimeout(() => {
+        globalThis.setTimeout(() => {
           selectingFromAutocompleteRef.current = false
         }, 150)
       })
@@ -103,13 +103,13 @@ function PlaceAutocompleteInput({
     return () => {
       cancelled = true
 
-      if (listenerRef.current && window.google?.maps?.event) {
-        window.google.maps.event.removeListener(listenerRef.current)
+      if (listenerRef.current && globalThis.google?.maps?.event) {
+        globalThis.google.maps.event.removeListener(listenerRef.current)
         listenerRef.current = null
       }
 
-      if (autocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current)
+      if (autocompleteRef.current && globalThis.google?.maps?.event) {
+        globalThis.google.maps.event.clearInstanceListeners(autocompleteRef.current)
         autocompleteRef.current = null
       }
     }
@@ -178,10 +178,10 @@ function RouteLiveMap({
         await loadGoogleMaps()
 
         if (cancelled || !mapRef.current) return
-        if (!window.google?.maps) return
+        if (!globalThis.google?.maps) return
 
         if (!mapInstanceRef.current) {
-          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          mapInstanceRef.current = new globalThis.google.maps.Map(mapRef.current, {
             center: PARIS_CENTER,
             zoom: 12,
             mapTypeControl: false,
@@ -191,11 +191,11 @@ function RouteLiveMap({
         }
 
         if (!directionsServiceRef.current) {
-          directionsServiceRef.current = new window.google.maps.DirectionsService()
+          directionsServiceRef.current = new globalThis.google.maps.DirectionsService()
         }
 
         if (!directionsRendererRef.current && mapInstanceRef.current) {
-          directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+          directionsRendererRef.current = new globalThis.google.maps.DirectionsRenderer({
             map: mapInstanceRef.current,
             suppressMarkers: true,
             polylineOptions: {
@@ -222,7 +222,7 @@ function RouteLiveMap({
 
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map || !window.google?.maps) return
+    if (!map || !globalThis.google?.maps) return
 
     if (originMarkerRef.current) {
       originMarkerRef.current.setMap(null)
@@ -235,7 +235,7 @@ function RouteLiveMap({
     }
 
     if (originLocation) {
-      originMarkerRef.current = new window.google.maps.Marker({
+      originMarkerRef.current = new globalThis.google.maps.Marker({
         map,
         position: originLocation,
         title: 'Inicio',
@@ -244,7 +244,7 @@ function RouteLiveMap({
     }
 
     if (destinationLocation) {
-      destinationMarkerRef.current = new window.google.maps.Marker({
+      destinationMarkerRef.current = new globalThis.google.maps.Marker({
         map,
         position: destinationLocation,
         title: 'Fin',
@@ -253,7 +253,7 @@ function RouteLiveMap({
     }
 
     if (originLocation && destinationLocation) {
-      const bounds = new window.google.maps.LatLngBounds()
+      const bounds = new globalThis.google.maps.LatLngBounds()
       bounds.extend(originLocation)
       bounds.extend(destinationLocation)
       map.fitBounds(bounds, 80)
@@ -273,7 +273,7 @@ function RouteLiveMap({
     const directionsService = directionsServiceRef.current
     const directionsRenderer = directionsRendererRef.current
 
-    if (!directionsService || !directionsRenderer || !window.google?.maps) return
+    if (!directionsService || !directionsRenderer || !globalThis.google?.maps) return
 
     setError('')
 
@@ -291,13 +291,13 @@ function RouteLiveMap({
       {
         origin: originLocation,
         destination: destinationLocation,
-        travelMode: window.google.maps.TravelMode[travelMode],
+        travelMode: globalThis.google.maps.TravelMode[travelMode],
       },
       (
         result: google.maps.DirectionsResult | null,
         status: google.maps.DirectionsStatus
       ) => {
-        if (status === window.google.maps.DirectionsStatus.OK && result) {
+        if (status === globalThis.google.maps.DirectionsStatus.OK && result) {
           directionsRenderer.setDirections(result)
         } else {
           console.error('Directions error:', status, result)
