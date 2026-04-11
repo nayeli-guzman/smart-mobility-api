@@ -6,7 +6,7 @@ type Props = {
   onChange: (value: string) => void
   onPlaceSelect: (payload: {
     address: string
-    location: google.maps.LatLngLiteral | null
+    location: any
   }) => void
 }
 
@@ -16,7 +16,7 @@ export default function OriginAutocompleteInput({
   onPlaceSelect,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+  const autocompleteRef = useRef<any>(null)
 
   useEffect(() => {
     let cancelled = false

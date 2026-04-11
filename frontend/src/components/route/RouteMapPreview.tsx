@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { loadGoogleMaps } from '../../lib/googleMaps'
 
 type Props = {
-  center?: google.maps.LatLngLiteral | null
+  center?: any
   markerTitle?: string
 }
 
