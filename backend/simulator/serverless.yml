@@ -9,7 +9,7 @@ provider:
   ecr:
     images:
       simulatorImage:
-        path: .  # carpeta donde está el Dockerfile
+        path: . 
 
   environment:
     API_MOBILITY_URL:
@@ -25,7 +25,7 @@ provider:
 functions:
   mobilityEventGenerator:
     image:
-      name: simulatorImage
+      name: simulatorimage
     name: ${self:service}-${sls:stage}-generator
     description: Generates simulated mobility events and posts them to the mobility API
     timeout: 30
