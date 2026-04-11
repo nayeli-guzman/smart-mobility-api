@@ -153,7 +153,7 @@ export default function RouteLiveMap({
         destination: destinationLocation,
         travelMode: google.maps.TravelMode[travelMode],
       },
-      (result, status) => {
+      (result:any, status:any) => {
         if (status === 'OK' && result) {
           directionsRenderer.setDirections(result)
         } else {
