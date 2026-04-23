@@ -1,0 +1,258 @@
+service: smart-mobility-route-api
+
+frameworkVersion: '4'
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+    pythonBin: python3
+
+provider:
+  name: aws
+  runtime: python3.11
+  timeout: 30
+  region: eu-north-1
+  stage: dev
+  logRetentionInDays: 7
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
+      allowCredentials: false
+
+  environment:
+    ROUTE_RECOMMENDATIONS_TABLE: ${self:service}-${sls:stage}-route-recommendations
+    USER_ID_CREATED_AT_INDEX: UserIdCreatedAtIndex
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - Fn::GetAtt: [RouteRecommendationsTable, Arn]
+            - Fn::Sub: ${RouteRecommendationsTable.Arn}/index/*
+
+functions:
+  authCheck:
+    handler: src/handlers/auth_check.handler
+
+  recommendRoute:
+    handler: src/handlers/recommend_route.handler
+
+  getRouteRecommendation:
+    handler: src/handlers/get_route_recommendation.handler
+
+resources:
+  Resources:
+
+    RouteRecommendationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.ROUTE_RECOMMENDATIONS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: routeId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: routeId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIdCreatedAtIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    ApiRoute:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: api-route-${sls:stage}
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - GET
+            - POST
+            - PATCH
+            - OPTIONS
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+
+    ApiRouteStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        StageName: $default
+        AutoDeploy: true
+
+    ApiRouteAuthorizer:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        AuthorizerType: JWT
+        IdentitySource:
+          - $request.header.Authorization
+        Name: cognito-jwt-route
+        JwtConfiguration:
+          Issuer:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${ImportedUserPoolId}
+              - ImportedUserPoolId:
+                  Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-id
+          Audience:
+            - Fn::ImportValue: smart-mobility-${sls:stage}-cognito-user-pool-client-id
+
+    AuthCheckIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [AuthCheckLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    RecommendRouteIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [RecommendRouteLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    GetRouteRecommendationIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [GetRouteRecommendationLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    AuthCheckRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        RouteKey: GET /auth-check
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: AuthCheckIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiRouteAuthorizer
+
+    RecommendRouteRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        RouteKey: POST /routes/recommend
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: RecommendRouteIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiRouteAuthorizer
+
+    GetRouteRecommendationRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiRoute
+        RouteKey: GET /routes/recommend/{routeId}
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: GetRouteRecommendationIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiRouteAuthorizer
+
+    AuthCheckLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: AuthCheckLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiRoute}/*/*
+
+    RecommendRouteLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: RecommendRouteLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiRoute}/*/*
+
+    GetRouteRecommendationLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: GetRouteRecommendationLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiRoute}/*/*
+
+  Outputs:
+    ApiRouteId:
+      Value:
+        Ref: ApiRoute
+      Export:
+        Name: smart-mobility-${sls:stage}-api-route-id
+
+    ApiRouteUrl:
+      Value:
+        Fn::Sub: https://${ApiRoute}.execute-api.${AWS::Region}.amazonaws.com
+      Export:
+        Name: smart-mobility-${sls:stage}-api-route-url
+
+    RouteRecommendationsTableName:
+      Value:
+        Ref: RouteRecommendationsTable
+      Export:
+        Name: smart-mobility-${sls:stage}-route-recommendations-table-name
+
+    RouteRecommendationsTableArn:
+      Value:
+        Fn::GetAtt: [RouteRecommendationsTable, Arn]
+      Export:
+        Name: smart-mobility-${sls:stage}-route-recommendations-table-arn

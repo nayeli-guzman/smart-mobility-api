@@ -31,6 +31,9 @@ provider:
 
   environment:
     USERS_TABLE: ${self:service}-${sls:stage}-users
+    ROUTE_RECOMMENDATIONS_TABLE:
+      Fn::ImportValue: smart-mobility-${sls:stage}-route-recommendations-table-name
+    USER_ID_CREATED_AT_INDEX: UserIdCreatedAtIndex
 
   iam:
     role:
@@ -40,8 +43,20 @@ provider:
             - dynamodb:GetItem
             - dynamodb:PutItem
             - dynamodb:UpdateItem
+            - dynamodb:Query
           Resource:
             - Fn::GetAtt: [UsersTable, Arn]
+        
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+          Resource:
+            - Fn::ImportValue: smart-mobility-${sls:stage}-route-recommendations-table-arn
+            - Fn::Sub:
+                - ${ImportedRouteTableArn}/index/*
+                - ImportedRouteTableArn:
+                    Fn::ImportValue: smart-mobility-${sls:stage}-route-recommendations-table-arn
+
 
 functions:
   authCheck:
@@ -55,6 +70,9 @@ functions:
 
   bootstrapUser:
     handler: src/handlers/bootstrap_user.handler
+
+  getUserRouteHistory:
+    handler: src/handlers/get_user_route_history.handler
 
 resources:
   Resources:
@@ -249,6 +267,41 @@ resources:
         Action: lambda:InvokeFunction
         FunctionName:
           Ref: BootstrapUserLambdaFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn:
+          Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiUser}/*/*
+
+    GetUserRouteHistoryIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        IntegrationType: AWS_PROXY
+        IntegrationUri:
+          Fn::GetAtt: [GetUserRouteHistoryLambdaFunction, Arn]
+        PayloadFormatVersion: "2.0"
+
+    GetUserRouteHistoryRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId:
+          Ref: ApiUser
+        RouteKey: GET /mobility/users/{userId}/history
+        Target:
+          Fn::Join:
+            - /
+            - - integrations
+              - Ref: GetUserRouteHistoryIntegration
+        AuthorizationType: JWT
+        AuthorizerId:
+          Ref: ApiUserAuthorizer
+    
+    GetUserRouteHistoryLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Ref: GetUserRouteHistoryLambdaFunction
         Principal: apigateway.amazonaws.com
         SourceArn:
           Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiUser}/*/*

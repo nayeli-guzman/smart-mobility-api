@@ -8,22 +8,20 @@ import boto3
 from src.utils.response import json_response
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["MOBILITY_EVENTS_TABLE"])
+table = dynamodb.Table(os.environ["ROUTE_RECOMMENDATIONS_TABLE"])
 
 
 def handler(event, context):
     try:
         body = json.loads(event.get("body") or "{}")
 
-        zone_id = body.get("zoneId")
-        vehicle_id = body.get("vehicleId")
-        speed = body.get("speed")
-        congestion_level = body.get("congestionLevel")
-        timestamp = body.get("timestamp")
+        start_point = body.get("startPoint")
+        end_point = body.get("endPoint")
+        travel_mode = body.get("travelMode", "car")
 
-        if not zone_id or not timestamp:
+        if not start_point or not end_point:
             return json_response(400, {
-                "message": "zoneId y timestamp son obligatorios"
+                "message": "startPoint and endPoint are required"
             })
 
         claims = (
@@ -37,29 +35,26 @@ def handler(event, context):
         email = claims.get("email")
 
         item = {
-            "eventId": str(uuid.uuid4()),
+            "routeId": str(uuid.uuid4()),
             "userId": user_id,
             "email": email,
-            "zoneId": zone_id,
-            "vehicleId": vehicle_id,
-            "speed": speed,
-            "congestionLevel": congestion_level,
-            "timestamp": timestamp,
+            "startPoint": start_point,
+            "endPoint": end_point,
+            "travelMode": travel_mode,
+            "status": "saved",
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
-
-        print("Saving event:", json.dumps(item))
 
         table.put_item(Item=item)
 
         return json_response(201, {
-            "message": "Evento creado correctamente",
-            "eventId": item["eventId"]
+            "message": "Route recommendation created successfully",
+            "routeId": item["routeId"],
+            "data": item
         })
 
     except json.JSONDecodeError:
-        return json_response(400, {"message": "JSON inválido"})
-
+        return json_response(400, {"message": "Invalid JSON"})
     except Exception as e:
         print("ERROR:", str(e))
         return json_response(500, {"message": "Internal server error"})
