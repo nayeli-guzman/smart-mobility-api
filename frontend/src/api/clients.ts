@@ -25,3 +25,4 @@ function buildClient(baseURL: string) {
 export const userApi = buildClient(import.meta.env.VITE_USER_API_URL || '')
 export const adminApi = buildClient(import.meta.env.VITE_ADMIN_API_URL || '')
 export const mobilityApi = buildClient(import.meta.env.VITE_MOBILITY_API_URL || '')
+export const routeApi = buildClient(import.meta.env.VITE_ROUTE_API_URL || '')
