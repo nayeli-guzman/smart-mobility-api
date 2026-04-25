@@ -44,7 +44,7 @@ def handler(event, context):
             .get("claims", {})
         )
 
-        requester = claims.get("email") or claims.get("sub")
+        requester = claims.get("email") or claims.get("sub") or "eventbridge-scheduler"
 
         items = scan_all_items()
         now = datetime.now(timezone.utc).isoformat()

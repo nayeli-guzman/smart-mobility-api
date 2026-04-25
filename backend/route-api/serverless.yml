@@ -65,6 +65,12 @@ functions:
   
   backupRouteRecommendations:
     handler: src/handlers/backup_route_recommendations.handler
+    events:
+      - schedule:
+          name: smart-mobility-${sls:stage}-daily-route-backup
+          description: Daily automatic backup of route recommendations to S3
+          rate: cron(0 2 * * ? *)
+          enabled: true
 
 resources:
   Resources:
