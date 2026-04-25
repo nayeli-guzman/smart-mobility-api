@@ -1,255 +1,504 @@
-# 🚀 Smart Mobility Platform (Cloud Native)
+# Smart Mobility Platform - Cloud Native Final Project
 
-A cloud-native smart mobility platform designed to simulate, ingest, process, and analyze real-time urban mobility data.
+A cloud-native smart mobility platform designed to simulate, ingest, process, monitor, and analyze urban mobility data in a smart city environment.
 
-This project implements a **microservices-based architecture on AWS**, including authentication, event ingestion, analytics, and user management, following cloud computing best practices.
-
----
-
-## 📌 Project Overview
-
-This platform simulates a smart city mobility system capable of:
-
-* Generating real-time mobility events (vehicles, congestion, zones)
-* Ingesting and storing data via scalable APIs
-* Providing analytics and administrative summaries
-* Managing users and preferences
-* Securing access using JWT-based authentication (Amazon Cognito)
+The project implements a serverless microservices architecture on AWS, including authentication, mobility event ingestion, route recommendation, user management, administrative analytics, observability, and backup mechanisms.
 
 ---
 
-## 🏗️ Architecture
+## Project Overview
 
-The system is composed of independent microservices:
+The platform was designed for the fictional smart city authority **UrbanMove**. Its purpose is to support intelligent mobility services such as:
 
+- Real-time mobility data ingestion
+- User profile and preference management
+- Route recommendation storage
+- Administrative congestion monitoring
+- Secure API access with Cognito JWT authentication
+- Automated event simulation
+- Cloud monitoring and backup support
+
+The frontend was deployed using **AWS Amplify**, while the backend was deployed using the **Serverless Framework v4**.
+
+---
+
+## Architecture Summary
+
+The backend is organized into independent Serverless services:
+
+```text
+backend/
+├── admin-api/
+├── infra-auth/
+├── mobility-api/
+├── route-api/
+├── simulator/
+└── user-api/
 ```
-root/
-├── backend/
-│   ├── smart-mobility-auth/
-│   ├── smart-mobility-mobility-api/
-│   ├── smart-mobility-admin-api/
-│   ├── smart-mobility-user-api/
-│   └── smart-mobility-simulator/
-│
-├── frontend/
-│   └── (web application)
-```
 
-### Backend Services
-
-| Service          | Description                          |
-| ---------------- | ------------------------------------ |
-| **auth**         | Cognito User Pool and authentication |
-| **mobility-api** | Event ingestion and querying         |
-| **admin-api**    | Analytics and admin summaries        |
-| **user-api**     | User profile and preferences         |
-| **simulator**    | Generates real-time mobility events  |
+Each service has its own `serverless.yml` file and can be deployed independently.
 
 ---
 
-## ⚙️ Tech Stack
+## Main AWS Services
 
-### Backend
-
-* AWS Lambda
-* API Gateway (HTTP API)
-* DynamoDB
-* Amazon Cognito
-* Serverless Framework
-
-### Frontend
-
-* (Your frontend stack, e.g. React + Vite)
-
----
-
-## 🔐 Authentication & Authorization
-
-* Authentication handled via **Amazon Cognito**
-* JWT tokens validated by API Gateway
-* Role-based authorization implemented in backend:
-
-  * `admin` → access to analytics & admin endpoints
-  * `user` → access to personal data only
+| AWS Service | Purpose |
+|---|---|
+| AWS Amplify | Frontend hosting and continuous deployment |
+| Amazon API Gateway HTTP API | Public API exposure |
+| AWS Lambda | Serverless backend execution |
+| Amazon Cognito | User authentication and JWT authorization |
+| Amazon DynamoDB | Persistent storage |
+| Amazon EventBridge | Scheduled event generation and backup automation |
+| Amazon S3 | Route recommendation backup storage |
+| Amazon CloudWatch | Logs, metrics, and observability dashboard |
+| IAM | Least-privilege permissions for services |
 
 ---
 
-## 📡 API Endpoints (Summary)
+## Backend Services
 
-### Mobility API
+### 1. infra-auth
 
-```
-POST   /mobility/events
-GET    /mobility/events
-GET    /mobility/events/{eventId}
+The `infra-auth` service provisions the authentication infrastructure.
+
+It creates:
+
+- Cognito User Pool
+- Cognito User Pool Client
+- Cognito Admin Group
+
+Exported values:
+
+- Cognito User Pool ID
+- Cognito User Pool Client ID
+
+These values are imported by the APIs to configure JWT authorizers.
+
+---
+
+### 2. user-api
+
+The `user-api` service manages authenticated user profiles and user route history.
+
+Main endpoints:
+
+```http
+GET    /auth-check
+GET    /users/{userId}
+PATCH  /users/{userId}/preferences
+POST   /users/bootstrap
 GET    /mobility/users/{userId}/history
 ```
 
-### Admin API
+Main storage:
 
-```
-GET /analytics/congestion-summary
-GET /admin/summary
+- `UsersTable`
+- Route recommendation history queried from the Route API DynamoDB table
+
+---
+
+### 3. mobility-api
+
+The `mobility-api` service manages mobility event ingestion and event queries.
+
+Main endpoints:
+
+```http
+GET    /auth-check
+POST   /mobility/events
+GET    /mobility/events
+GET    /mobility/events/{eventId}
 ```
 
-### User API
+Main storage:
 
+- `MobilityEventsTable`
+
+Indexes:
+
+- `UserIdTimestampIndex`
+- `ZoneIdTimestampIndex`
+- `VehicleIdTimestampIndex`
+
+---
+
+### 4. route-api
+
+The `route-api` service manages route recommendation records and backup operations.
+
+Main endpoints:
+
+```http
+GET    /auth-check
+POST   /routes/recommend
+GET    /routes/recommend/{routeId}
+POST   /routes/backup
 ```
-GET   /users/{userId}
-PATCH /users/{userId}/preferences
+
+Main storage:
+
+- `RouteRecommendationsTable`
+
+Index:
+
+- `UserIdCreatedAtIndex`
+
+Backup:
+
+- S3 bucket with versioning enabled
+- Daily EventBridge schedule at 02:00 UTC
+- Manual protected backup endpoint: `POST /routes/backup`
+
+Observability:
+
+- CloudWatch Dashboard for Route API metrics
+
+---
+
+### 5. admin-api
+
+The `admin-api` service provides administrative monitoring and summary endpoints.
+
+Main endpoints:
+
+```http
+GET    /auth-check
+GET    /admin/summary
+GET    /admin/congestion-summary
+```
+
+Security:
+
+- Cognito JWT authentication
+- Admin group validation using the `cognito:groups` claim
+- Only users in the `admin` Cognito group can access admin summary operations
+
+---
+
+### 6. simulator
+
+The `simulator` service generates synthetic mobility events.
+
+It is deployed as a container-based Lambda function using a Dockerfile.
+
+The simulator:
+
+- Runs every minute using Amazon EventBridge
+- Authenticates with Cognito
+- Generates synthetic users, vehicles, zones, speeds, and congestion levels
+- Sends events to the Mobility API endpoint `/mobility/events`
+- Sends 10 events per run by default
+
+---
+
+## Authentication and Authorization
+
+Authentication is handled by Amazon Cognito.
+
+Each API Gateway uses a Cognito JWT Authorizer. Requests must include a valid token:
+
+```http
+Authorization: Bearer <JWT_TOKEN>
+```
+
+Administrative endpoints require an additional authorization check. The user must belong to the Cognito group:
+
+```text
+admin
 ```
 
 ---
 
-## 🚀 Getting Started (Reproducible Setup)
+## Data Model
 
-### 1. Prerequisites
+### UsersTable
 
-* Node.js (>= 18)
-* Python (>= 3.11)
-* AWS CLI configured
-* Serverless Framework
+Stores user profile data.
+
+Main key:
+
+```text
+userId
+```
+
+---
+
+### MobilityEventsTable
+
+Stores mobility events generated by users or the simulator.
+
+Main key:
+
+```text
+eventId
+```
+
+Indexes:
+
+```text
+UserIdTimestampIndex
+ZoneIdTimestampIndex
+VehicleIdTimestampIndex
+```
+
+---
+
+### RouteRecommendationsTable
+
+Stores route recommendation records.
+
+Main key:
+
+```text
+routeId
+```
+
+Index:
+
+```text
+UserIdCreatedAtIndex
+```
+
+---
+
+## Real-Time Data Ingestion
+
+Real-time data ingestion is simulated using the `simulator` service.
+
+The flow is:
+
+```text
+EventBridge schedule
+        ↓
+Containerized Lambda simulator
+        ↓
+Cognito authentication
+        ↓
+POST /mobility/events
+        ↓
+Mobility API
+        ↓
+DynamoDB MobilityEventsTable
+```
+
+This allows the platform to continuously receive generated mobility data.
+
+---
+
+## Observability
+
+The system uses Amazon CloudWatch for operational visibility.
+
+CloudWatch provides:
+
+- Lambda logs
+- Lambda invocation metrics
+- Lambda error metrics
+- Lambda duration metrics
+- API Gateway request metrics
+- API Gateway 4XX and 5XX error metrics
+- DynamoDB capacity metrics
+- Route API CloudWatch Dashboard
+
+---
+
+## Disaster Recovery and Backup
+
+The Route API includes a backup mechanism for route recommendations.
+
+Backup features:
+
+- Amazon S3 bucket for backups
+- S3 versioning enabled
+- Public access blocked
+- Daily EventBridge backup schedule
+- Manual backup endpoint
+
+Backup flow:
+
+```text
+EventBridge daily schedule
+        ↓
+backupRouteRecommendations Lambda
+        ↓
+RouteRecommendationsTable
+        ↓
+S3 backup bucket
+```
+
+---
+
+## Deployment Requirements
+
+Before deploying, install and configure:
+
+- Node.js 18 or later
+- Python 3.11
+- AWS CLI
+- Docker
+- Serverless Framework v4
+
+Install Serverless Framework:
 
 ```bash
 npm install -g serverless
 ```
 
----
-
-### 2. Clone the repository
+Configure AWS credentials:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/smart-mobility.git
-cd smart-mobility
+aws configure
 ```
 
 ---
 
-## 🔧 Backend Deployment
+## Backend Deployment
 
-Each backend service is deployed independently.
+Deploy the backend services in this order.
 
-### Step 1: Deploy Authentication (Cognito)
-
-```bash
-cd backend/smart-mobility-auth
-serverless deploy
-```
-
----
-
-### Step 2: Deploy APIs
-
-Deploy in this order:
+### 1. Deploy Cognito infrastructure
 
 ```bash
-cd ../smart-mobility-mobility-api
-serverless deploy
-
-cd ../smart-mobility-admin-api
-serverless deploy
-
-cd ../smart-mobility-user-api
+cd backend/infra-auth
 serverless deploy
 ```
 
 ---
 
-### Step 3: Add Admin User
+### 2. Deploy Mobility API
 
-After deployment, assign a user to the `admin` group:
+```bash
+cd ../mobility-api
+serverless deploy
+```
+
+---
+
+### 3. Deploy Route API
+
+```bash
+cd ../route-api
+serverless deploy
+```
+
+---
+
+### 4. Deploy User API
+
+```bash
+cd ../user-api
+serverless deploy
+```
+
+---
+
+### 5. Deploy Admin API
+
+```bash
+cd ../admin-api
+serverless deploy
+```
+
+---
+
+### 6. Deploy Simulator
+
+```bash
+cd ../simulator
+serverless deploy
+```
+
+---
+
+## Admin User Configuration
+
+To access admin endpoints, add a Cognito user to the `admin` group.
 
 ```bash
 aws cognito-idp admin-add-user-to-group \
-  --user-pool-id YOUR_USER_POOL_ID \
-  --username YOUR_EMAIL \
+  --user-pool-id <USER_POOL_ID> \
+  --username <USER_EMAIL> \
   --group-name admin \
   --region eu-north-1
 ```
 
-Then **log in again** to refresh your JWT token.
+After adding the user to the group, log in again to refresh the JWT token.
 
 ---
 
-### Step 4: Deploy Simulator
+## Frontend Deployment
+
+The frontend was deployed using AWS Amplify.
+
+Amplify provides:
+
+- Managed frontend hosting
+- GitHub integration
+- Automatic build and deployment
+- Public frontend endpoint
+
+The frontend must be configured with:
+
+- Cognito User Pool ID
+- Cognito User Pool Client ID
+- API Gateway URLs for all backend APIs
+
+---
+
+## Testing Example
+
+Example request to an authenticated endpoint:
 
 ```bash
-cd ../smart-mobility-simulator
-serverless deploy
+curl -X GET \
+  https://<API_ID>.execute-api.eu-north-1.amazonaws.com/admin/summary \
+  -H "Authorization: Bearer <JWT_TOKEN>"
 ```
 
-This will start generating real-time mobility events it is going to be running with containers.
-
----
-
-## 💻 Frontend Setup
+Example request to create a route recommendation:
 
 ```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Make sure your frontend is configured with:
-
-* API Gateway URLs
-* Cognito Client ID
-
----
-
-## 🧪 Testing the APIs
-
-Use Postman or curl with a valid JWT token:
-
-```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-https://YOUR_API_ID.execute-api.eu-north-1.amazonaws.com/admin/summary
+curl -X POST \
+  https://<API_ID>.execute-api.eu-north-1.amazonaws.com/routes/recommend \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "startPoint": "Central Station",
+    "endPoint": "University Campus",
+    "travelMode": "car"
+  }'
 ```
 
 ---
 
-## 📊 Observability
+## Cost Optimization
 
-* Logs available in **CloudWatch**
-* Metrics:
+The architecture optimizes cost by using:
 
-  * Lambda invocations
-  * Errors
-  * API Gateway responses
-
----
-
-## 🔄 Reproducibility
-
-This project is fully reproducible thanks to:
-
-* Infrastructure as Code (Serverless Framework)
-* Independent microservices
-* Declarative AWS resources (CloudFormation)
-* Environment-based configuration
-
-To recreate the system, simply:
-
-1. Configure AWS credentials
-2. Deploy each service
-3. Connect frontend (https://main.d1xjhbruratny3.amplifyapp.com)
+- AWS Lambda instead of always-on servers
+- DynamoDB on-demand billing
+- EventBridge scheduled execution
+- S3 for low-cost backup storage
+- CloudWatch log retention configured for 7 days
+- AWS Amplify managed hosting
 
 ---
 
-## 📁 Deliverables
+## Project Deliverables
 
-* Cloud architecture diagram
-* Backend microservices (Serverless)
-* Frontend application 
-* Deployment-ready infrastructure
-* API endpoints with authentication & authorization
+This repository supports the following final project deliverables:
+
+- Cloud architecture diagram
+- Serverless backend implementation
+- Amplify frontend deployment
+- Cognito-based authentication
+- Real-time mobility event simulation
+- DynamoDB persistence
+- CloudWatch observability
+- S3 backup and disaster recovery
+- Technical implementation report
+- Deployment evidence
 
 ---
-
-## 📌 Notes
-
-* DynamoDB uses **on-demand billing** for cost optimization
-* Lambda ensures automatic scalability
-* API Gateway provides secure exposure of services
-
 
